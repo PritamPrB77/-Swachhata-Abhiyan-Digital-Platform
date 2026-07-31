@@ -1,0 +1,196 @@
+services:
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: swachhata-nginx
+    depends_on:
+      - frontend
+      - auth-service
+      - complaint-service
+      - fleet-service
+      - drive-service
+      - gamification-service
+      - minio
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - swachhata-net
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: swachhata-frontend
+    networks:
+      - swachhata-net
+    restart: unless-stopped
+
+  auth-service:
+    build:
+      context: ./services/auth-service
+      dockerfile: Dockerfile
+    container_name: swachhata-auth
+    environment:
+      DATABASE_URL: postgresql+psycopg://swachh:swachh@postgres:5432/auth_db
+      JWT_SECRET: ${JWT_SECRET:-swachhata-dev-secret-change-me}
+      JWT_ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: "10080"
+      CORS_ORIGINS: "*"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - auth-data:/app/data
+    networks:
+      - swachhata-net
+    restart: unless-stopped
+
+  complaint-service:
+    build:
+      context: ./services/complaint-service
+      dockerfile: Dockerfile
+    container_name: swachhata-complaint
+    environment:
+      DATABASE_URL: postgresql+psycopg://swachh:swachh@postgres:5432/complaint_db
+      JWT_SECRET: ${JWT_SECRET:-swachhata-dev-secret-change-me}
+      JWT_ALGORITHM: HS256
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minio}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minio12345}
+      MINIO_BUCKET: complaints
+      MINIO_SECURE: "false"
+      PUBLIC_MEDIA_BASE: /media
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    networks:
+      - swachhata-net
+    restart: unless-stopped
+
+  fleet-service:
+    build:
+      context: ./services/fleet-service
+      dockerfile: Dockerfile
+    container_name: swachhata-fleet
+    environment:
+      DATABASE_URL: postgresql+psycopg://swachh:swachh@postgres:5432/fleet_db
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: ${JWT_SECRET:-swachhata-dev-secret-change-me}
+      JWT_ALGORITHM: HS256
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - swachhata-net
+    restart: unless-stopped
+
+  drive-service:
+    build:
+      context: ./services/drive-service
+      dockerfile: Dockerfile
+    container_name: swachhata-drive
+    environment:
+      DATABASE_URL: postgresql+psycopg://swachh:swachh@postgres:5432/drive_db
+      JWT_SECRET: ${JWT_SECRET:-swachhata-dev-secret-change-me}
+      JWT_ALGORITHM: HS256
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - swachhata-net
+    restart: unless-stopped
+
+  gamification-service:
+    build:
+      context: ./services/gamification-service
+      dockerfile: Dockerfile
+    container_name: swachhata-gamification
+    environment:
+      DATABASE_URL: postgresql+psycopg://swachh:swachh@postgres:5432/gamification_db
+      JWT_SECRET: ${JWT_SECRET:-swachhata-dev-secret-change-me}
+      JWT_ALGORITHM: HS256
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - swachhata-net
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: swachhata-postgres
+    environment:
+      POSTGRES_USER: swachh
+      POSTGRES_PASSWORD: swachh
+      POSTGRES_DB: postgres
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./scripts/init-databases.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    networks:
+      - swachhata-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U swachh"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: swachhata-redis
+    volumes:
+      - redis-data:/data
+    networks:
+      - swachhata-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio:latest
+    container_name: swachhata-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minio12345}
+    volumes:
+      - minio-data:/data
+    networks:
+      - swachhata-net
+    restart: unless-stopped
+
+  minio-init:
+    image: minio/mc:latest
+    container_name: swachhata-minio-init
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      sleep 3;
+      mc alias set local http://minio:9000 minio minio12345;
+      mc mb -p local/complaints || true;
+      mc anonymous set download local/complaints || true;
+      exit 0;
+      "
+    networks:
+      - swachhata-net
+
+networks:
+  swachhata-net:
+    driver: bridge
+    name: swachhata-net
+
+volumes:
+  postgres-data:
+  redis-data:
+  minio-data:
+  auth-data:
