@@ -1,7 +1,7 @@
 import enum
 from datetime import datetime
 
-from sqlalchemy import String, DateTime, Enum, Integer, Text, Boolean
+from sqlalchemy import String, DateTime, Enum, Integer, Text, Boolean, Float
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -27,7 +27,24 @@ class DriveEvent(Base):
     capacity: Mapped[int] = mapped_column(Integer, default=50)
     status: Mapped[DriveStatus] = mapped_column(Enum(DriveStatus), default=DriveStatus.upcoming)
     created_by: Mapped[int] = mapped_column(Integer)
+    budget_allocated: Mapped[float] = mapped_column(Float, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class ExpenseEntry(Base):
+    """Append-only fund ledger — never edit; corrections = new offsetting entry."""
+
+    __tablename__ = "expense_entries"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    event_id: Mapped[int] = mapped_column(Integer, index=True)
+    amount: Mapped[float] = mapped_column(Float)
+    category: Mapped[str] = mapped_column(String(64), default="other")
+    description: Mapped[str] = mapped_column(Text, default="")
+    receipt_url: Mapped[str] = mapped_column(String(512), default="")
+    added_by: Mapped[int] = mapped_column(Integer)
+    added_by_name: Mapped[str] = mapped_column(String(255), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
 
 
 class VolunteerSignup(Base):

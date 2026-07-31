@@ -1,7 +1,7 @@
 import enum
 from datetime import datetime
 
-from sqlalchemy import String, DateTime, Enum, Integer, Float, Text
+from sqlalchemy import Boolean, String, DateTime, Enum, Integer, Float, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -53,10 +53,25 @@ class Complaint(Base):
     assignee_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     assignee_name: Mapped[str] = mapped_column(String(255), default="")
     officer_notes: Mapped[str] = mapped_column(Text, default="")
+    sla_hours: Mapped[int] = mapped_column(Integer, default=24)
+    due_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    escalated: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
     )
+
+
+class StatusHistory(Base):
+    __tablename__ = "status_history"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    complaint_id: Mapped[int] = mapped_column(Integer, index=True)
+    status: Mapped[str] = mapped_column(String(40))
+    note: Mapped[str] = mapped_column(String(255), default="")
+    actor_id: Mapped[int] = mapped_column(Integer, default=0)
+    actor_name: Mapped[str] = mapped_column(String(255), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
 
 
 class ComplaintComment(Base):

@@ -114,25 +114,47 @@ Flow: Driver browser → WebSocket/REST → fleet-service → Redis → Officer 
 
 ## Architecture (microservices)
 
+```mermaid
+flowchart LR
+  Browser --> Nginx
+  Nginx --> Frontend
+  Nginx --> Auth
+  Nginx --> Complaints
+  Nginx --> Fleet
+  Nginx --> Drives
+  Nginx --> Gamification
+  Nginx --> Awareness
+  Nginx --> MinIO
+  Fleet <--> Redis
+  Auth --> PG[(Postgres)]
+  Complaints --> PG
+  Fleet --> PG
+  Drives --> PG
+  Gamification --> PG
+  Awareness --> PG
+```
+
 ```text
 Browser ──► nginx:80
               ├── /                     → frontend (React SPA)
               ├── /api/auth/            → auth-service
               ├── /api/complaints/      → complaint-service
               ├── /api/fleet/           → fleet-service
-              ├── /ws/fleet             → fleet-service (WebSocket)
-              ├── /api/drives/          → drive-service
-              ├── /api/gamification/    → gamification-service   ← NEW
+              ├── /ws/fleet             → fleet-service (WebSocket + Upgrade headers)
+              ├── /api/drives/          → drive-service (+ public fund ledger)
+              ├── /api/gamification/    → gamification-service (+ wallet stub)
+              ├── /api/awareness/       → awareness-service (committees/campaigns)
               └── /media/               → MinIO
 ```
 
 | Service | DB | Responsibility |
 |---------|----|----------------|
 | auth-service | `auth_db` | Register/login JWT + roles |
-| complaint-service | `complaint_db` | Complaints + MinIO images |
-| fleet-service | `fleet_db` + Redis | Vehicles + live driver GPS |
-| drive-service | `drive_db` | Events / volunteers / certificates |
-| **gamification-service** | **`gamification_db`** | XP, levels, badges, missions, store, leaderboards |
+| complaint-service | `complaint_db` | Complaints + SLA + MinIO images |
+| fleet-service | `fleet_db` + Redis | Vehicles + live driver GPS WebSocket |
+| drive-service | `drive_db` | Events / volunteers / fund ledger |
+| **gamification-service** | **`gamification_db`** | XP, badges, missions, store, wallet payout stub |
+| **awareness-service** | **`awareness_db`** | Committees, campaigns, calendar, scorecards |
 
 Network: `swachhata-net` · Volumes: `postgres-data`, `redis-data`, `minio-data`
 
@@ -218,4 +240,7 @@ See [`DOCs/README.md`](./DOCs/README.md) and [`DOCs/07-GAMIFICATION.md`](./DOCs/
 | Gamification 500 / DB missing | `docker compose exec postgres psql -U swachh -c "CREATE DATABASE gamification_db;"` then restart gamification service |
 | Login email invalid | Use `@example.com` demos (not `.local`) |
 | Map empty | Driver must click **Start sharing location** and allow GPS |
-| Frontend old UI | `docker compose up --build -d frontend nginx` |
+| Frontend old UI | `npm run build` in `frontend/` then `docker compose up --build -d frontend nginx` |
+| WebSocket 403 / stuck connecting | Rebuild fleet + reload nginx; UI shows Connected / Reconnecting (attempt N). REST `/api/fleet/live` still works as fallback |
+| `awareness_db` missing | `docker compose exec postgres psql -U swachh -d postgres -c "CREATE DATABASE awareness_db;"` then `docker compose restart awareness-service` |
+| Drive `budget_allocated` missing | `docker compose exec postgres psql -U swachh -d drive_db -c "ALTER TABLE drive_events ADD COLUMN IF NOT EXISTS budget_allocated DOUBLE PRECISION DEFAULT 0;"` then restart drive-service |

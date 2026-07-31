@@ -180,3 +180,20 @@ class WardScore(Base):
     citizen_count: Mapped[int] = mapped_column(Integer, default=0)
     cleanliness_score: Mapped[float] = mapped_column(Float, default=0.0)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class WalletPayout(Base):
+    """Append-only payout requests — real cash via stubbed partner API, not custodial balance."""
+
+    __tablename__ = "wallet_payouts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(Integer, index=True)
+    kind: Mapped[str] = mapped_column(String(40), default="redeem")
+    points: Mapped[int] = mapped_column(Integer)
+    inr_amount: Mapped[float] = mapped_column(Float, default=0)
+    upi_id: Mapped[str] = mapped_column(String(120), default="")
+    status: Mapped[str] = mapped_column(String(40), default="pending")  # pending|processing|completed|failed
+    provider_ref: Mapped[str] = mapped_column(String(120), default="")
+    note: Mapped[str] = mapped_column(String(255), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)

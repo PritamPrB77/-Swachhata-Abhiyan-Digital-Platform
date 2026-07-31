@@ -1,11 +1,12 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
 import L from "leaflet";
-import { api, getToken } from "@/lib/api";
-import { wsUrl } from "@/lib/utils";
+import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { FadeIn } from "@/components/magic/effects";
 import { useAuth } from "@/context/AuthContext";
+import { socketLabel, socketTone, useFleetSocket } from "@/hooks/useFleetSocket";
 
 type LiveVehicle = {
   vehicle_id: number;
@@ -64,12 +65,11 @@ export function FleetMapPage() {
   const { user } = useAuth();
   const [vehicles, setVehicles] = useState<Record<number, LiveVehicle>>({});
   const [events, setEvents] = useState<CoordEvent[]>([]);
-  const [error, setError] = useState("");
-  const [connected, setConnected] = useState(false);
+  const [restError, setRestError] = useState("");
   const prevRef = useRef<Record<number, { lat: number; lng: number }>>({});
   const list = Object.values(vehicles);
 
-  useEffect(() => {
+  const loadSnapshot = useCallback(() => {
     api<LiveVehicle[]>("/api/fleet/live")
       .then((items) => {
         const map: Record<number, LiveVehicle> = {};
@@ -78,74 +78,80 @@ export function FleetMapPage() {
           prevRef.current[i.vehicle_id] = { lat: i.latitude, lng: i.longitude };
         });
         setVehicles(map);
+        setRestError("");
       })
-      .catch((e) => setError(e.message));
-
-    const token = getToken();
-    const ws = new WebSocket(`${wsUrl("/ws/fleet")}?token=${encodeURIComponent(token || "")}`);
-    ws.onopen = () => setConnected(true);
-    ws.onclose = () => setConnected(false);
-    ws.onmessage = (ev) => {
-      try {
-        const msg = JSON.parse(ev.data);
-        if (msg.type === "location" && msg.data) {
-          const d = msg.data as LiveVehicle;
-          const prev = prevRef.current[d.vehicle_id];
-          const next = { lat: d.latitude, lng: d.longitude };
-          let deltaM = 0;
-          if (prev) {
-            deltaM = haversine(prev, next);
-            // Show even slight moves (>= 0.5m)
-            if (deltaM >= 0.5) {
-              setEvents((e) =>
-                [
-                  {
-                    id: `${d.vehicle_id}-${d.updated_at}`,
-                    vehicle_id: d.vehicle_id,
-                    label: d.label,
-                    lat: d.latitude,
-                    lng: d.longitude,
-                    deltaM,
-                    at: new Date().toLocaleTimeString(),
-                  },
-                  ...e,
-                ].slice(0, 40),
-              );
-            }
-          }
-          prevRef.current[d.vehicle_id] = next;
-          setVehicles((p) => ({ ...p, [d.vehicle_id]: d }));
-        }
-      } catch {
-        /* ignore */
-      }
-    };
-    ws.onerror = () => setError("Live socket issue — refresh to reconnect");
-    return () => ws.close();
+      .catch((e) => setRestError(e.message));
   }, []);
+
+  useEffect(() => {
+    loadSnapshot();
+    const id = window.setInterval(loadSnapshot, 15000);
+    return () => window.clearInterval(id);
+  }, [loadSnapshot]);
+
+  const onMessage = useCallback((raw: unknown) => {
+    const msg = raw as { type?: string; data?: LiveVehicle };
+    if (msg.type !== "location" || !msg.data) return;
+    const d = msg.data;
+    const prev = prevRef.current[d.vehicle_id];
+    const next = { lat: d.latitude, lng: d.longitude };
+    if (prev) {
+      const deltaM = haversine(prev, next);
+      if (deltaM >= 0.5) {
+        setEvents((e) =>
+          [
+            {
+              id: `${d.vehicle_id}-${d.updated_at}-${deltaM}`,
+              vehicle_id: d.vehicle_id,
+              label: d.label,
+              lat: d.latitude,
+              lng: d.longitude,
+              deltaM,
+              at: new Date().toLocaleTimeString(),
+            },
+            ...e,
+          ].slice(0, 40),
+        );
+      }
+    }
+    prevRef.current[d.vehicle_id] = next;
+    setVehicles((p) => ({ ...p, [d.vehicle_id]: d }));
+  }, []);
+
+  const { state, attempt, lastError, reconnectNow } = useFleetSocket({ onMessage });
 
   return (
     <div className="space-y-6">
       <FadeIn>
-        <h1 className="font-display text-3xl font-semibold">Live fleet map</h1>
-        <p className="text-muted-foreground">
+        <h1 className="font-display text-3xl font-bold text-foreground">Live fleet map</h1>
+        <p className="mt-1 text-base text-muted-foreground">
           {user?.role === "driver"
             ? "Your GPS stream is visible city-wide while sharing."
             : "Everyone can watch trucks live. Tiny coordinate changes appear in the feed."}
         </p>
-        <p className="mt-1 text-xs">
-          WebSocket:{" "}
-          <span className={connected ? "text-emerald-700 font-medium" : "text-amber-700"}>
-            {connected ? "LIVE" : "connecting…"}
+        <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
+          <span>
+            WebSocket: <span className={socketTone(state)}>{socketLabel(state, attempt)}</span>
           </span>
-        </p>
+          {state !== "connected" && (
+            <Button type="button" size="sm" variant="outline" onClick={reconnectNow}>
+              Retry now
+            </Button>
+          )}
+          <Button type="button" size="sm" variant="ghost" onClick={loadSnapshot}>
+            Refresh snapshot
+          </Button>
+        </div>
+        {lastError && state !== "connected" && (
+          <p className="mt-2 text-sm font-medium text-amber-700 dark:text-amber-300">{lastError}</p>
+        )}
+        {restError && <p className="mt-2 text-sm font-medium text-rose-600 dark:text-rose-400">{restError}</p>}
       </FadeIn>
-      {error && <p className="text-sm text-red-600">{error}</p>}
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle className="text-xl">
+            <CardTitle className="text-xl text-foreground">
               {list.length} active {list.length === 1 ? "vehicle" : "vehicles"}
             </CardTitle>
           </CardHeader>
@@ -184,15 +190,15 @@ export function FleetMapPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Coordinate change feed</CardTitle>
+            <CardTitle className="text-lg text-foreground">Coordinate change feed</CardTitle>
           </CardHeader>
           <CardContent className="max-h-[480px] space-y-2 overflow-y-auto">
             {events.length === 0 && (
               <p className="text-sm text-muted-foreground">Moves ≥ 0.5m will appear here live.</p>
             )}
             {events.map((e) => (
-              <div key={e.id} className="rounded-lg bg-secondary/60 px-3 py-2 text-xs">
-                <div className="font-medium">{e.label}</div>
+              <div key={e.id} className="rounded-lg border border-border bg-muted px-3 py-2 text-xs text-foreground">
+                <div className="font-semibold">{e.label}</div>
                 <div className="text-muted-foreground">
                   Δ {e.deltaM.toFixed(1)} m · {e.lat.toFixed(6)}, {e.lng.toFixed(6)}
                 </div>

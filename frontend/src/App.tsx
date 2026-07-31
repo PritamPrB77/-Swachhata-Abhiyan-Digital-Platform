@@ -9,6 +9,8 @@ import { FleetMapPage } from "@/pages/FleetMapPage";
 import { DrivesPage } from "@/pages/DrivesPage";
 import { RewardsPage } from "@/pages/gamification/RewardsPage";
 import { ProfilePage } from "@/pages/ProfilePage";
+import { AwarenessPage } from "@/pages/AwarenessPage";
+import { ReportsPage } from "@/pages/ReportsPage";
 
 function Protected() {
   const { user } = useAuth();
@@ -36,6 +38,8 @@ export default function App() {
             <Route path="track" element={<DriverTrackPage />} />
             <Route path="fleet" element={<FleetMapPage />} />
             <Route path="drives" element={<DrivesPage />} />
+            <Route path="awareness" element={<AwarenessPage />} />
+            <Route path="reports" element={<ReportsPage />} />
             <Route path="rewards" element={<RewardsGate />} />
             <Route path="profile" element={<ProfilePage />} />
           </Route>

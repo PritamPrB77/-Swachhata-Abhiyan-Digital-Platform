@@ -15,6 +15,7 @@ from app.models import (
     PlayerProfile,
     RewardItem,
     UserBadge,
+    WalletPayout,
     WardScore,
 )
 from app.rules import period_key
@@ -295,3 +296,87 @@ def read_all(db: Session = Depends(get_db), user: TokenUser = Depends(require_re
     ).update({"read": True})
     db.commit()
     return {"ok": True}
+
+
+# --- Real-money wallet (stub payout partner — never custodial) ---
+POINTS_PER_RUPEE = 10
+MIN_REDEEM_POINTS = 100
+
+
+@app.get("/wallet/config")
+def wallet_config(_: TokenUser = Depends(require_reward_role)):
+    return {
+        "points_per_rupee": POINTS_PER_RUPEE,
+        "min_redeem_points": MIN_REDEEM_POINTS,
+        "provider": "stub-payout-partner",
+        "note": "Demo only — swap stub for Razorpay/Cashfree Payouts in production.",
+    }
+
+
+@app.get("/wallet/ledger")
+def wallet_ledger(db: Session = Depends(get_db), user: TokenUser = Depends(require_reward_role)):
+    rows = (
+        db.query(WalletPayout)
+        .filter(WalletPayout.user_id == user.id)
+        .order_by(WalletPayout.created_at.desc())
+        .limit(50)
+        .all()
+    )
+    return [
+        {
+            "id": r.id,
+            "kind": r.kind,
+            "points": r.points,
+            "inr_amount": r.inr_amount,
+            "status": r.status,
+            "provider_ref": r.provider_ref,
+            "created_at": r.created_at.isoformat() + "Z",
+        }
+        for r in rows
+    ]
+
+
+@app.post("/wallet/redeem")
+def wallet_redeem(
+    payload: dict,
+    db: Session = Depends(get_db),
+    user: TokenUser = Depends(require_reward_role),
+):
+    import uuid
+
+    points = int(payload.get("points") or 0)
+    upi_id = str(payload.get("upi_id") or "").strip()
+    if points < MIN_REDEEM_POINTS:
+        raise HTTPException(status_code=400, detail=f"Minimum redeem is {MIN_REDEEM_POINTS} points")
+    if not upi_id or "@" not in upi_id:
+        raise HTTPException(status_code=400, detail="Valid UPI ID required")
+
+    profile = db.get(PlayerProfile, user.id)
+    if not profile or profile.points < points:
+        raise HTTPException(status_code=400, detail="Insufficient points")
+
+    inr = round(points / POINTS_PER_RUPEE, 2)
+    # Stub partner payout — records provider_ref as if Razorpay/Cashfree succeeded
+    provider_ref = f"stub_payout_{uuid.uuid4().hex[:12]}"
+    profile.points -= points
+    row = WalletPayout(
+        user_id=user.id,
+        kind="redeem",
+        points=points,
+        inr_amount=inr,
+        upi_id=upi_id,
+        status="completed",
+        provider_ref=provider_ref,
+        note="Stub partner payout (demo)",
+    )
+    db.add(row)
+    db.add(
+        GameNotification(
+            user_id=user.id,
+            title="Payout completed",
+            body=f"₹{inr} sent to {upi_id} (ref {provider_ref})",
+            kind="reward",
+        )
+    )
+    db.commit()
+    return {"status": row.status, "inr_amount": inr, "provider_ref": provider_ref, "points": points}

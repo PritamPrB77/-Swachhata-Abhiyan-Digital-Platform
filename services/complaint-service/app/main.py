@@ -1,10 +1,12 @@
+from datetime import datetime, timedelta
+
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.database import Base, engine, get_db
-from app.models import Complaint, ComplaintComment, ComplaintStatus
+from app.models import Complaint, ComplaintComment, ComplaintStatus, StatusHistory
 from app.schemas import (
     AnalyzeRequest,
     CommentCreate,
@@ -20,6 +22,14 @@ from app.storage import public_url, upload_image
 
 Base.metadata.create_all(bind=engine)
 
+SLA_HOURS = {
+    "garbage": 24,
+    "street_cleaning": 36,
+    "toilet": 24,
+    "drainage": 48,
+    "other": 48,
+}
+
 
 def _ensure_columns():
     alters = [
@@ -29,6 +39,9 @@ def _ensure_columns():
         "ALTER TABLE complaints ADD COLUMN IF NOT EXISTS sentiment_score DOUBLE PRECISION DEFAULT 0",
         "ALTER TABLE complaints ADD COLUMN IF NOT EXISTS sentiment_label VARCHAR(40) DEFAULT 'neutral'",
         "ALTER TABLE complaints ADD COLUMN IF NOT EXISTS officer_notes TEXT DEFAULT ''",
+        "ALTER TABLE complaints ADD COLUMN IF NOT EXISTS sla_hours INTEGER DEFAULT 24",
+        "ALTER TABLE complaints ADD COLUMN IF NOT EXISTS due_at TIMESTAMP",
+        "ALTER TABLE complaints ADD COLUMN IF NOT EXISTS escalated BOOLEAN DEFAULT FALSE",
     ]
     with engine.begin() as conn:
         for stmt in alters:
@@ -37,7 +50,7 @@ def _ensure_columns():
 
 _ensure_columns()
 
-app = FastAPI(title="Swachhata Complaint Service", version="1.1.0")
+app = FastAPI(title="Swachhata Complaint Service", version="1.2.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -47,9 +60,18 @@ app.add_middleware(
 )
 
 
+def _is_overdue(c: Complaint) -> bool:
+    if c.status in (ComplaintStatus.resolved, ComplaintStatus.rejected):
+        return False
+    if not c.due_at:
+        return False
+    return datetime.utcnow() > c.due_at
+
+
 def to_out(c: Complaint) -> ComplaintOut:
     data = ComplaintOut.model_validate(c)
     data.image_url = public_url(c.image_key)
+    data.overdue = _is_overdue(c)
     return data
 
 
@@ -76,6 +98,7 @@ def stats(db: Session = Depends(get_db), user: TokenUser = Depends(get_current_u
         resolved=sum(1 for r in rows if r.status == ComplaintStatus.resolved),
         critical=sum(1 for r in rows if (r.urgency or "") == "critical"),
         high=sum(1 for r in rows if (r.urgency or "") == "high"),
+        overdue=sum(1 for r in rows if _is_overdue(r)),
     )
 
 
@@ -104,6 +127,9 @@ def create_complaint(
     )
     sentiment_label = payload.sentiment_label or analysis["sentiment_label"]
 
+    cat = payload.category.value if hasattr(payload.category, "value") else str(payload.category)
+    sla_hours = SLA_HOURS.get(cat, 48)
+    now = datetime.utcnow()
     complaint = Complaint(
         citizen_id=user.id,
         citizen_name=user.full_name,
@@ -119,8 +145,20 @@ def create_complaint(
         sentiment_score=float(sentiment_score),
         sentiment_label=sentiment_label,
         status=ComplaintStatus.submitted,
+        sla_hours=sla_hours,
+        due_at=now + timedelta(hours=sla_hours),
     )
     db.add(complaint)
+    db.flush()
+    db.add(
+        StatusHistory(
+            complaint_id=complaint.id,
+            status=ComplaintStatus.submitted.value,
+            note="Submitted",
+            actor_id=user.id,
+            actor_name=user.full_name,
+        )
+    )
     db.commit()
     db.refresh(complaint)
     return to_out(complaint)
@@ -173,7 +211,18 @@ def update_complaint(
     c = db.get(Complaint, complaint_id)
     if not c:
         raise HTTPException(status_code=404, detail="Not found")
-    if payload.status is not None:
+    if payload.status is not None and payload.status != c.status:
+        c.status = payload.status
+        db.add(
+            StatusHistory(
+                complaint_id=c.id,
+                status=payload.status.value,
+                note=payload.officer_notes or f"Status → {payload.status.value}",
+                actor_id=user.id,
+                actor_name=user.full_name,
+            )
+        )
+    elif payload.status is not None:
         c.status = payload.status
     if payload.assignee_id is not None:
         c.assignee_id = payload.assignee_id
@@ -186,9 +235,70 @@ def update_complaint(
     if payload.status == ComplaintStatus.assigned and not c.assignee_id:
         c.assignee_id = user.id
         c.assignee_name = user.full_name
+    # Auto-escalate if past SLA
+    if _is_overdue(c) and not c.escalated:
+        c.escalated = True
+        db.add(
+            StatusHistory(
+                complaint_id=c.id,
+                status=c.status.value,
+                note="Auto-escalated: SLA breached",
+                actor_id=0,
+                actor_name="system",
+            )
+        )
     db.commit()
     db.refresh(c)
     return to_out(c)
+
+
+@app.post("/escalate-overdue")
+def escalate_overdue(db: Session = Depends(get_db), user: TokenUser = Depends(get_current_user)):
+    if user.role not in ("officer", "admin"):
+        raise HTTPException(status_code=403, detail="Forbidden")
+    count = 0
+    for c in db.query(Complaint).filter(Complaint.escalated.is_(False)).all():
+        if _is_overdue(c):
+            c.escalated = True
+            db.add(
+                StatusHistory(
+                    complaint_id=c.id,
+                    status=c.status.value,
+                    note="SLA breached — escalated",
+                    actor_id=user.id,
+                    actor_name=user.full_name,
+                )
+            )
+            count += 1
+    db.commit()
+    return {"escalated": count}
+
+
+@app.get("/{complaint_id}/history")
+def complaint_history(
+    complaint_id: int,
+    db: Session = Depends(get_db),
+    user: TokenUser = Depends(get_current_user),
+):
+    c = db.get(Complaint, complaint_id)
+    if not c:
+        raise HTTPException(status_code=404, detail="Not found")
+    rows = (
+        db.query(StatusHistory)
+        .filter(StatusHistory.complaint_id == complaint_id)
+        .order_by(StatusHistory.created_at.asc())
+        .all()
+    )
+    return [
+        {
+            "id": r.id,
+            "status": r.status,
+            "note": r.note,
+            "actor_name": r.actor_name,
+            "created_at": r.created_at.isoformat() + "Z",
+        }
+        for r in rows
+    ]
 
 
 @app.get("/{complaint_id}/comments", response_model=list[CommentOut])

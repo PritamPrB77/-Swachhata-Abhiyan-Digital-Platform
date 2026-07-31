@@ -7,6 +7,7 @@ import {
   fetchProfile,
 } from "@/lib/gamification";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { FadeIn, GradientText, ShimmerButton } from "@/components/magic/effects";
 
@@ -76,7 +77,7 @@ type Notif = {
   created_at: string;
 };
 
-const tabs = ["Overview", "Badges", "Missions", "Store", "Leaderboard", "Alerts"] as const;
+const tabs = ["Overview", "Badges", "Missions", "Store", "Wallet", "Leaderboard", "Alerts"] as const;
 
 export function RewardsPage() {
   const [tab, setTab] = useState<(typeof tabs)[number]>("Overview");
@@ -161,10 +162,10 @@ export function RewardsPage() {
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`rounded-full px-4 py-1.5 text-sm transition ${
+            className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
               tab === t
                 ? "bg-primary text-primary-foreground shadow"
-                : "bg-white/70 text-muted-foreground ring-1 ring-border hover:bg-secondary"
+                : "border border-border bg-card text-foreground hover:bg-muted"
             }`}
           >
             {t}
@@ -173,19 +174,19 @@ export function RewardsPage() {
       </div>
 
       {toast && (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-900">
+        <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/15 px-4 py-2 text-sm font-medium text-emerald-900 dark:text-emerald-100">
           {toast}
         </div>
       )}
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm font-medium text-rose-600 dark:text-rose-400">{error}</p>}
 
       {tab === "Overview" && profile && (
         <FadeIn>
           <div className="grid gap-4 md:grid-cols-3">
-            <Card className="md:col-span-2 overflow-hidden border-emerald-900/10 bg-gradient-to-br from-white/90 to-emerald-50/80">
+            <Card className="md:col-span-2 border-primary/20">
               <CardHeader>
-                <CardTitle className="text-xl">{profile.display_name}</CardTitle>
-                <CardDescription className="capitalize">
+                <CardTitle className="text-xl text-foreground">{profile.display_name}</CardTitle>
+                <CardDescription className="capitalize text-muted-foreground">
                   {profile.tier} · Level {profile.level} · {profile.ward}
                 </CardDescription>
               </CardHeader>
@@ -198,13 +199,13 @@ export function RewardsPage() {
                   <Stat label="Badges" value={profile.badges_count} />
                 </div>
                 <div>
-                  <div className="mb-1 flex justify-between text-xs text-muted-foreground">
+                  <div className="mb-1 flex justify-between text-xs font-medium text-muted-foreground">
                     <span>Level {profile.level}</span>
                     <span>{profile.xp_to_next_level} XP to next</span>
                   </div>
-                  <div className="h-3 overflow-hidden rounded-full bg-secondary">
+                  <div className="h-3 overflow-hidden rounded-full bg-muted">
                     <div
-                      className="h-full rounded-full bg-gradient-to-r from-emerald-700 to-amber-500 transition-all"
+                      className="h-full rounded-full bg-gradient-to-r from-emerald-600 to-amber-500 transition-all"
                       style={{ width: `${progressPct}%` }}
                     />
                   </div>
@@ -216,7 +217,7 @@ export function RewardsPage() {
                       className={`rounded-full px-2 py-1 capitalize ${
                         profile.tier === t
                           ? "bg-primary text-primary-foreground"
-                          : "bg-secondary text-muted-foreground"
+                          : "border border-border bg-muted text-muted-foreground"
                       }`}
                     >
                       {t}
@@ -230,14 +231,14 @@ export function RewardsPage() {
             </Card>
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Active challenges</CardTitle>
+                <CardTitle className="text-lg text-foreground">Active challenges</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 {challenges.map((c) => (
-                  <div key={c.code} className="rounded-lg bg-secondary/60 p-3">
-                    <div className="font-medium">{c.title}</div>
+                  <div key={c.code} className="rounded-lg border border-border bg-muted p-3">
+                    <div className="font-semibold text-foreground">{c.title}</div>
                     <p className="text-xs text-muted-foreground">{c.description}</p>
-                    <p className="mt-1 text-xs">
+                    <p className="mt-1 text-xs text-foreground">
                       {c.scope} · +{c.reward_xp} XP · ends {new Date(c.ends_at).toLocaleDateString()}
                     </p>
                   </div>
@@ -253,13 +254,13 @@ export function RewardsPage() {
           {badges.map((b) => (
             <Card
               key={b.code}
-              className={b.earned ? "border-amber-300/60 bg-amber-50/50" : "opacity-70"}
+              className={b.earned ? "border-amber-500/50 bg-amber-500/10" : "opacity-80"}
             >
               <CardContent className="p-5">
                 <div className="text-3xl">{b.icon}</div>
-                <div className="mt-2 font-display text-lg font-semibold">{b.name}</div>
+                <div className="mt-2 font-display text-lg font-semibold text-foreground">{b.name}</div>
                 <p className="text-sm text-muted-foreground">{b.description}</p>
-                <p className="mt-2 text-xs">
+                <p className="mt-2 text-xs text-foreground">
                   {b.earned ? "Unlocked" : "Locked"} · Bonus +{b.bonus_xp} XP
                 </p>
               </CardContent>
@@ -281,8 +282,10 @@ export function RewardsPage() {
                   </p>
                 </div>
                 <span
-                  className={`rounded-full px-3 py-1 text-xs ${
-                    m.completed ? "bg-emerald-100 text-emerald-800" : "bg-secondary"
+                  className={`rounded-full px-3 py-1 text-xs font-medium ${
+                    m.completed
+                      ? "bg-emerald-500/20 text-emerald-800 dark:text-emerald-200"
+                      : "border border-border bg-muted text-foreground"
                   }`}
                 >
                   {m.completed ? "Done" : "In progress"}
@@ -298,11 +301,11 @@ export function RewardsPage() {
           {store.map((item) => (
             <Card key={item.code}>
               <CardHeader>
-                <CardTitle className="text-lg">{item.name}</CardTitle>
+                <CardTitle className="text-lg text-foreground">{item.name}</CardTitle>
                 <CardDescription>{item.description}</CardDescription>
               </CardHeader>
               <CardContent className="flex items-center justify-between">
-                <div className="text-sm">
+                <div className="text-sm text-foreground">
                   <span className="font-semibold">{item.cost_points}</span> pts · {item.stock} left ·{" "}
                   <span className="capitalize">{item.item_type.replace("_", " ")}</span>
                 </div>
@@ -315,6 +318,10 @@ export function RewardsPage() {
         </div>
       )}
 
+      {tab === "Wallet" && profile && (
+        <WalletPanel points={profile.points} onDone={async (msg) => { setToast(msg); await refresh(); }} onError={setError} />
+      )}
+
       {tab === "Leaderboard" && (
         <div className="grid gap-4 lg:grid-cols-2">
           <Card>
@@ -325,7 +332,7 @@ export function RewardsPage() {
               {leaders.map((l) => (
                 <div
                   key={l.rank}
-                  className="flex items-center justify-between rounded-lg bg-secondary/50 px-3 py-2 text-sm"
+                  className="flex items-center justify-between rounded-lg border border-border bg-muted px-3 py-2 text-sm text-foreground"
                 >
                   <span>
                     #{l.rank} {l.display_name}{" "}
@@ -346,7 +353,7 @@ export function RewardsPage() {
               {wards.map((w) => (
                 <div
                   key={w.ward}
-                  className="flex items-center justify-between rounded-lg bg-secondary/50 px-3 py-2 text-sm"
+                  className="flex items-center justify-between rounded-lg border border-border bg-muted px-3 py-2 text-sm text-foreground"
                 >
                   <span>
                     #{w.rank} {w.ward}{" "}
@@ -384,11 +391,13 @@ export function RewardsPage() {
             {notifs.map((n) => (
               <div
                 key={n.id}
-                className={`rounded-lg px-3 py-2 text-sm ${
-                  n.read ? "bg-secondary/40" : "bg-emerald-50 ring-1 ring-emerald-100"
+                className={`rounded-lg border px-3 py-2 text-sm ${
+                  n.read
+                    ? "border-border bg-muted text-foreground"
+                    : "border-emerald-500/40 bg-emerald-500/15 text-foreground"
                 }`}
               >
-                <div className="font-medium">{n.title}</div>
+                <div className="font-semibold">{n.title}</div>
                 <div className="text-muted-foreground">{n.body}</div>
                 <div className="mt-1 text-xs text-muted-foreground">
                   {n.kind} · {new Date(n.created_at).toLocaleString()}
@@ -405,8 +414,107 @@ export function RewardsPage() {
 function Stat({ label, value }: { label: string; value: number }) {
   return (
     <div>
-      <div className="text-2xl font-semibold tabular-nums">{value}</div>
-      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className="text-2xl font-bold tabular-nums text-foreground">{value}</div>
+      <div className="text-xs font-medium text-muted-foreground">{label}</div>
+    </div>
+  );
+}
+
+function WalletPanel({
+  points,
+  onDone,
+  onError,
+}: {
+  points: number;
+  onDone: (msg: string) => Promise<void>;
+  onError: (msg: string) => void;
+}) {
+  const [upi, setUpi] = useState("");
+  const [amountPts, setAmountPts] = useState(100);
+  const [ledger, setLedger] = useState<
+    { id: number; kind: string; points: number; inr_amount: number; status: string; created_at: string }[]
+  >([]);
+  const [rate, setRate] = useState({ points_per_rupee: 10, min_redeem_points: 100 });
+
+  useEffect(() => {
+    api<{ points_per_rupee: number; min_redeem_points: number }>("/api/gamification/wallet/config")
+      .then(setRate)
+      .catch(() => undefined);
+    api<typeof ledger>("/api/gamification/wallet/ledger")
+      .then(setLedger)
+      .catch(() => undefined);
+  }, []);
+
+  const inr = Math.floor(amountPts / Math.max(rate.points_per_rupee, 1));
+
+  async function requestPayout() {
+    try {
+      const r = await api<{ status: string; inr_amount: number; provider_ref: string }>(
+        "/api/gamification/wallet/redeem",
+        {
+          method: "POST",
+          body: JSON.stringify({ points: amountPts, upi_id: upi }),
+        },
+      );
+      await onDone(`Payout ${r.status}: ₹${r.inr_amount} · ref ${r.provider_ref}`);
+      const rows = await api<typeof ledger>("/api/gamification/wallet/ledger");
+      setLedger(rows);
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "Payout failed");
+    }
+  }
+
+  return (
+    <div className="grid gap-4 lg:grid-cols-2">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg text-foreground">Cash redeem (stub payout)</CardTitle>
+          <CardDescription>
+            Points stay in-app. Redemption calls a mocked payout partner (Razorpay/Cashfree-style) — no custodial wallet.
+            Rate: {rate.points_per_rupee} pts = ₹1 · min {rate.min_redeem_points} pts.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-foreground">
+            Available: <strong className="tabular">{points}</strong> points
+          </p>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-foreground">UPI ID</label>
+            <Input value={upi} onChange={(e) => setUpi(e.target.value)} placeholder="name@upi" />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-foreground">Points to redeem</label>
+            <Input
+              type="number"
+              value={amountPts}
+              min={rate.min_redeem_points}
+              onChange={(e) => setAmountPts(Number(e.target.value))}
+            />
+            <p className="mt-1 text-xs text-muted-foreground">≈ ₹{inr}</p>
+          </div>
+          <Button type="button" onClick={requestPayout} disabled={!upi || amountPts < rate.min_redeem_points}>
+            Request payout
+          </Button>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg text-foreground">Wallet ledger</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {ledger.length === 0 && <p className="text-sm text-muted-foreground">No payouts yet.</p>}
+          {ledger.map((row) => (
+            <div key={row.id} className="rounded-lg border border-border bg-muted px-3 py-2 text-sm text-foreground">
+              <div className="font-medium capitalize">
+                {row.kind} · {row.status}
+              </div>
+              <div className="text-muted-foreground">
+                {row.points} pts · ₹{row.inr_amount} · {new Date(row.created_at).toLocaleString()}
+              </div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
     </div>
   );
 }

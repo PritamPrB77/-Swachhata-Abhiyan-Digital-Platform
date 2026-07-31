@@ -126,19 +126,29 @@ def live_locations(user: TokenUser = Depends(get_current_user)):
 
 @app.websocket("/ws/fleet")
 async def ws_fleet(websocket: WebSocket):
-    token = websocket.query_params.get("token")
+    # Accept first — closing before accept makes Uvicorn return HTTP 403
+    await websocket.accept()
+
+    token = websocket.query_params.get("token") or ""
     if not token:
+        # Also try Sec-WebSocket-Protocol style: "bearer,<token>"
+        proto = websocket.headers.get("sec-websocket-protocol") or ""
+        if proto.startswith("bearer,"):
+            token = proto.split(",", 1)[1].strip()
+    if not token:
+        await websocket.send_json({"type": "error", "message": "Missing token"})
         await websocket.close(code=4401)
         return
     try:
         user = decode_token(token)
     except HTTPException:
+        await websocket.send_json({"type": "error", "message": "Invalid token"})
         await websocket.close(code=4401)
         return
 
-    await websocket.accept()
+    await websocket.send_json({"type": "ready", "role": user.role})
 
-    # Send current snapshot — all roles see all vehicles (drivers still see everyone live)
+    # Send current snapshot — all roles see all vehicles
     for item in get_all_latest():
         await websocket.send_json({"type": "location", "data": item})
 
@@ -200,5 +210,8 @@ async def ws_fleet(websocket: WebSocket):
     except WebSocketDisconnect:
         pass
     finally:
-        pubsub.unsubscribe(CHANNEL)
-        pubsub.close()
+        try:
+            pubsub.unsubscribe(CHANNEL)
+            pubsub.close()
+        except Exception:
+            pass

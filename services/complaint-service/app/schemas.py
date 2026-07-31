@@ -49,6 +49,10 @@ class ComplaintOut(BaseModel):
     assignee_id: Optional[int]
     assignee_name: str
     officer_notes: str = ""
+    sla_hours: int = 24
+    due_at: Optional[datetime] = None
+    escalated: bool = False
+    overdue: bool = False
     created_at: datetime
     updated_at: datetime
 
@@ -86,3 +90,4 @@ class StatsOut(BaseModel):
     resolved: int
     critical: int
     high: int
+    overdue: int = 0

@@ -9,6 +9,7 @@ services:
       - fleet-service
       - drive-service
       - gamification-service
+      - awareness-service
       - minio
     ports:
       - "80:80"
@@ -113,6 +114,23 @@ services:
     container_name: swachhata-gamification
     environment:
       DATABASE_URL: postgresql+psycopg://swachh:swachh@postgres:5432/gamification_db
+      JWT_SECRET: ${JWT_SECRET:-swachhata-dev-secret-change-me}
+      JWT_ALGORITHM: HS256
+      PAYMENT_PROVIDER_API_KEY: ${PAYMENT_PROVIDER_API_KEY:-stub-demo-key}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - swachhata-net
+    restart: unless-stopped
+
+  awareness-service:
+    build:
+      context: ./services/awareness-service
+      dockerfile: Dockerfile
+    container_name: swachhata-awareness
+    environment:
+      DATABASE_URL: postgresql+psycopg://swachh:swachh@postgres:5432/awareness_db
       JWT_SECRET: ${JWT_SECRET:-swachhata-dev-secret-change-me}
       JWT_ALGORITHM: HS256
     depends_on:

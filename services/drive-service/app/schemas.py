@@ -14,6 +14,7 @@ class DriveCreate(BaseModel):
     starts_at: datetime
     ends_at: datetime
     capacity: int = Field(default=50, ge=1)
+    budget_allocated: float = 0
 
 
 class DriveOut(BaseModel):
@@ -27,8 +28,33 @@ class DriveOut(BaseModel):
     capacity: int
     status: DriveStatus
     created_by: int
+    budget_allocated: float = 0
     created_at: datetime
     signup_count: int = 0
+    spent: float = 0
+    remaining: float = 0
+
+    class Config:
+        from_attributes = True
+
+
+class ExpenseCreate(BaseModel):
+    amount: float = Field(gt=0)
+    category: str = "other"
+    description: str = ""
+    receipt_url: str = ""
+
+
+class ExpenseOut(BaseModel):
+    id: int
+    event_id: int
+    amount: float
+    category: str
+    description: str
+    receipt_url: str
+    added_by: int
+    added_by_name: str
+    created_at: datetime
 
     class Config:
         from_attributes = True

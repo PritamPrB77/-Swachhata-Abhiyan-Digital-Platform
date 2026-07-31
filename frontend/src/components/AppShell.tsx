@@ -13,6 +13,8 @@ import {
   UserRound,
   Menu,
   X,
+  Users,
+  BarChart3,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
@@ -34,6 +36,8 @@ export function AppShell() {
     { to: "/app/track", label: "Share GPS", icon: Truck, roles: ["driver"] },
     { to: "/app/fleet", label: "Live Map", icon: MapPinned, roles: ["citizen", "driver", "officer", "admin"] },
     { to: "/app/drives", label: "Drives", icon: Megaphone, roles: ["citizen", "driver", "officer", "admin"] },
+    { to: "/app/awareness", label: "Awareness", icon: Users, roles: ["citizen", "driver", "officer", "admin"] },
+    { to: "/app/reports", label: "Reports", icon: BarChart3, roles: ["citizen", "driver", "officer", "admin"] },
     { to: "/app/rewards", label: "Rewards", icon: Trophy, roles: ["citizen", "driver"] },
     { to: "/app/profile", label: "Profile", icon: UserRound, roles: ["citizen", "driver", "officer", "admin"] },
   ].filter((l) => user && l.roles.includes(user.role));
