@@ -15,22 +15,64 @@ Production-oriented **local Docker microservice** web portal for cleanliness com
 
 ### Start the platform
 
-```bash
+**PowerShell (Windows):**
+
+```powershell
 cd D:\Broadridge
-cp .env.example .env
+copy .env.example .env
 docker compose up --build
+```
+
+**Detached (background):**
+
+```powershell
+cd D:\Broadridge
+copy .env.example .env
+docker compose up --build -d
 ```
 
 Open: **http://localhost**  
 Only **port 80** is published (nginx). Backend ports are internal.
 
-### Stop / reset
+### Stop the platform
 
-```bash
-docker compose down          # stop
-docker compose down -v       # stop + wipe databases/volumes
-docker compose logs -f nginx gamification-service
+**If running in the foreground** (logs in the terminal): press `Ctrl+C`, then:
+
+```powershell
+cd D:\Broadridge
+docker compose down
 ```
+
+**If running detached (`-d`):**
+
+```powershell
+cd D:\Broadridge
+docker compose down
+```
+
+| Command | What it does |
+|---------|----------------|
+| `docker compose up --build` | Build images and start all services (logs in terminal) |
+| `docker compose up --build -d` | Same, but in the background |
+| `docker compose down` | Stop and remove containers (keeps DB volumes) |
+| `docker compose down -v` | Stop and also delete volumes (wipes Postgres/Redis/MinIO data) |
+| `docker compose stop` | Stop containers only (keep them for a quick restart) |
+| `docker compose start` | Restart previously stopped containers |
+| `docker compose ps` | Show running service status |
+| `docker compose logs -f` | Follow logs for all services |
+
+### Landing flow
+1. Full marketing landing (sticky nav, 3D city hero, stats, problem, how-it-works, bento features, dashboard preview, leaderboard, testimonials, CTA, footer)  
+2. **Login / Report** opens role picker → demo credentials → app  
+3. Left sidebar sections · top-right profile · middle dashboard  
+
+**Stack note:** Vite + React (not Next.js). Three.js / R3F for 3D, Framer Motion, shadcn-style UI, Recharts, Leaflet.
+
+### Role access
+| Role | Rewards | Live map | Complaints |
+|------|---------|----------|------------|
+| Citizen / Driver | Yes | View (+ driver shares GPS) | File + history |
+| Officer / Admin | No | View + review | Review / assign / resolve |
 
 ### Demo accounts
 
@@ -41,11 +83,16 @@ docker compose logs -f nginx gamification-service
 | Officer | officer@example.com | officer123 |
 | Admin | admin@example.com | admin123 |
 
-### Quick smoke test
-1. Login as **citizen** → submit a complaint → check **Rewards** for +10 XP  
-2. Login as **driver** → **Share GPS** → allow location  
-3. Login as **officer** → **Live Fleet** → see moving marker  
-4. Open **Rewards** → claim daily login, view badges / missions / store / leaderboard  
+### If `docker compose up --build` fails with Docker Hub `EOF`
+Docker Hub may be blocked/unstable. Images are pulled from **AWS Public ECR** instead:
+
+```powershell
+docker pull public.ecr.aws/docker/library/node:20-alpine
+docker pull public.ecr.aws/docker/library/python:3.12-slim
+docker compose up --build
+```
+
+Dockerfiles already use `public.ecr.aws/docker/library/...` base images.
 
 ---
 

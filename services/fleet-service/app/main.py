@@ -120,8 +120,7 @@ def post_location(
 
 @app.get("/live", response_model=list[LiveVehicle])
 def live_locations(user: TokenUser = Depends(get_current_user)):
-    if user.role not in ("officer", "admin", "driver"):
-        raise HTTPException(status_code=403, detail="Forbidden")
+    # All authenticated roles can view live fleet (citizens, drivers, officers, admin)
     return get_all_latest()
 
 
@@ -139,10 +138,8 @@ async def ws_fleet(websocket: WebSocket):
 
     await websocket.accept()
 
-    # Send current snapshot
+    # Send current snapshot — all roles see all vehicles (drivers still see everyone live)
     for item in get_all_latest():
-        if user.role == "driver" and item.get("driver_user_id") != user.id:
-            continue
         await websocket.send_json({"type": "location", "data": item})
 
     r = get_redis()
@@ -197,10 +194,7 @@ async def ws_fleet(websocket: WebSocket):
             msg = pubsub.get_message(timeout=0.01)
             if msg and msg.get("type") == "message":
                 payload = json.loads(msg["data"])
-                if user.role == "driver" and payload.get("driver_user_id") != user.id:
-                    continue
-                if user.role in ("officer", "admin", "driver"):
-                    await websocket.send_json({"type": "location", "data": payload})
+                await websocket.send_json({"type": "location", "data": payload})
 
             await asyncio.sleep(0.05)
     except WebSocketDisconnect:

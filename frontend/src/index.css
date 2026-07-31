@@ -3,40 +3,40 @@
 @tailwind utilities;
 
 :root {
-  --background: 152 30% 97%;
-  --foreground: 160 40% 10%;
+  --background: 40 20% 98%;
+  --foreground: 150 25% 6%;
   --card: 0 0% 100%;
-  --card-foreground: 160 40% 10%;
-  --primary: 158 64% 28%;
+  --card-foreground: 150 25% 6%;
+  --primary: 142 70% 34%;
   --primary-foreground: 0 0% 100%;
-  --secondary: 150 20% 92%;
-  --secondary-foreground: 160 30% 20%;
-  --muted: 150 15% 93%;
-  --muted-foreground: 160 10% 40%;
-  --accent: 34 90% 55%;
-  --accent-foreground: 30 50% 12%;
-  --border: 150 15% 85%;
-  --input: 150 15% 85%;
-  --ring: 158 64% 28%;
-  --radius: 0.85rem;
+  --secondary: 199 89% 48%;
+  --secondary-foreground: 0 0% 100%;
+  --muted: 40 10% 94%;
+  --muted-foreground: 150 8% 40%;
+  --accent: 25 95% 53%;
+  --accent-foreground: 0 0% 100%;
+  --border: 150 10% 88%;
+  --input: 150 10% 88%;
+  --ring: 142 70% 34%;
+  --radius: 1rem;
 }
 
 .dark {
-  --background: 160 25% 8%;
-  --foreground: 150 20% 96%;
-  --card: 160 20% 12%;
-  --card-foreground: 150 20% 96%;
-  --primary: 158 55% 42%;
+  --background: 150 25% 4%;
+  --foreground: 40 20% 96%;
+  --card: 150 18% 8%;
+  --card-foreground: 40 20% 96%;
+  --primary: 142 65% 42%;
   --primary-foreground: 0 0% 100%;
-  --secondary: 160 15% 18%;
-  --secondary-foreground: 150 15% 90%;
-  --muted: 160 12% 16%;
-  --muted-foreground: 150 10% 65%;
-  --accent: 34 85% 50%;
-  --accent-foreground: 30 40% 10%;
-  --border: 160 12% 22%;
-  --input: 160 12% 22%;
-  --ring: 158 55% 42%;
+  --secondary: 199 80% 48%;
+  --secondary-foreground: 0 0% 100%;
+  --muted: 150 12% 14%;
+  --muted-foreground: 150 8% 65%;
+  --accent: 25 90% 52%;
+  --accent-foreground: 0 0% 100%;
+  --border: 150 12% 18%;
+  --input: 150 12% 18%;
+  --ring: 142 65% 42%;
 }
 
 * {
@@ -45,18 +45,23 @@
 
 body {
   @apply bg-background text-foreground font-sans antialiased;
-  background-image:
-    radial-gradient(ellipse 80% 50% at 10% -10%, hsl(158 50% 80% / 0.35), transparent),
-    radial-gradient(ellipse 60% 40% at 100% 0%, hsl(34 90% 70% / 0.2), transparent),
-    linear-gradient(180deg, hsl(var(--background)), hsl(150 25% 94%));
   min-height: 100vh;
 }
 
-.dark body {
-  background-image:
-    radial-gradient(ellipse 80% 50% at 10% -10%, hsl(158 40% 20% / 0.45), transparent),
-    radial-gradient(ellipse 60% 40% at 100% 0%, hsl(34 60% 25% / 0.25), transparent),
-    linear-gradient(180deg, hsl(160 25% 8%), hsl(160 22% 10%));
+.grain {
+  position: relative;
+}
+
+.glass {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.6);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.12);
+  backdrop-filter: blur(16px);
+}
+
+.dark .glass {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .leaflet-container {
@@ -64,4 +69,8 @@ body {
   height: 100%;
   border-radius: var(--radius);
   z-index: 0;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
 }

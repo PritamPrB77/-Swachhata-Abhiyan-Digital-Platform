@@ -8,11 +8,20 @@ import { DriverTrackPage } from "@/pages/DriverTrackPage";
 import { FleetMapPage } from "@/pages/FleetMapPage";
 import { DrivesPage } from "@/pages/DrivesPage";
 import { RewardsPage } from "@/pages/gamification/RewardsPage";
+import { ProfilePage } from "@/pages/ProfilePage";
 
 function Protected() {
   const { user } = useAuth();
   if (!user) return <Navigate to="/" replace />;
   return <Outlet />;
+}
+
+function RewardsGate() {
+  const { user } = useAuth();
+  if (user?.role !== "citizen" && user?.role !== "driver") {
+    return <Navigate to="/app" replace />;
+  }
+  return <RewardsPage />;
 }
 
 export default function App() {
@@ -27,7 +36,8 @@ export default function App() {
             <Route path="track" element={<DriverTrackPage />} />
             <Route path="fleet" element={<FleetMapPage />} />
             <Route path="drives" element={<DrivesPage />} />
-            <Route path="rewards" element={<RewardsPage />} />
+            <Route path="rewards" element={<RewardsGate />} />
+            <Route path="profile" element={<ProfilePage />} />
           </Route>
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

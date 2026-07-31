@@ -1,6 +1,6 @@
 services:
   nginx:
-    image: nginx:1.27-alpine
+    image: public.ecr.aws/docker/library/nginx:1.27-alpine
     container_name: swachhata-nginx
     depends_on:
       - frontend
@@ -135,7 +135,7 @@ services:
     networks:
       - swachhata-net
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U swachh"]
+      test: ["CMD-SHELL", "pg_isready -U swachh -d postgres"]
       interval: 5s
       timeout: 5s
       retries: 10

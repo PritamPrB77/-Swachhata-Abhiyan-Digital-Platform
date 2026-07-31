@@ -68,8 +68,17 @@ def profile_out(db: Session, p: PlayerProfile) -> ProfileOut:
     )
 
 
+def require_reward_role(user: TokenUser = Depends(get_current_user)) -> TokenUser:
+    if user.role not in ("citizen", "driver"):
+        raise HTTPException(
+            status_code=403,
+            detail="Rewards are only for citizens and field workers/drivers",
+        )
+    return user
+
+
 @app.get("/me", response_model=ProfileOut)
-def my_profile(db: Session = Depends(get_db), user: TokenUser = Depends(get_current_user)):
+def my_profile(db: Session = Depends(get_db), user: TokenUser = Depends(require_reward_role)):
     p = ensure_profile(db, user.id, user.full_name, user.role, user.ward)
     db.commit()
     return profile_out(db, p)
@@ -79,7 +88,7 @@ def my_profile(db: Session = Depends(get_db), user: TokenUser = Depends(get_curr
 def award_xp(
     payload: AwardRequest,
     db: Session = Depends(get_db),
-    user: TokenUser = Depends(get_current_user),
+    user: TokenUser = Depends(require_reward_role),
 ):
     return award(
         db,
@@ -95,7 +104,7 @@ def award_xp(
 
 
 @app.post("/checkin", response_model=AwardResult)
-def daily_checkin(db: Session = Depends(get_db), user: TokenUser = Depends(get_current_user)):
+def daily_checkin(db: Session = Depends(get_db), user: TokenUser = Depends(require_reward_role)):
     return award(
         db,
         user.id,
@@ -110,7 +119,7 @@ def daily_checkin(db: Session = Depends(get_db), user: TokenUser = Depends(get_c
 
 
 @app.get("/badges", response_model=list[BadgeOut])
-def list_badges(db: Session = Depends(get_db), user: TokenUser = Depends(get_current_user)):
+def list_badges(db: Session = Depends(get_db), user: TokenUser = Depends(require_reward_role)):
     earned = {
         ub.badge_id: ub.earned_at
         for ub in db.query(UserBadge).filter(UserBadge.user_id == user.id).all()
@@ -132,7 +141,7 @@ def list_badges(db: Session = Depends(get_db), user: TokenUser = Depends(get_cur
 
 
 @app.get("/missions", response_model=list[MissionOut])
-def list_missions(db: Session = Depends(get_db), user: TokenUser = Depends(get_current_user)):
+def list_missions(db: Session = Depends(get_db), user: TokenUser = Depends(require_reward_role)):
     missions = db.query(Mission).filter(Mission.active.is_(True)).all()
     result = []
     for m in missions:
@@ -162,7 +171,7 @@ def list_missions(db: Session = Depends(get_db), user: TokenUser = Depends(get_c
 
 
 @app.get("/challenges", response_model=list[ChallengeOut])
-def list_challenges(db: Session = Depends(get_db), _: TokenUser = Depends(get_current_user)):
+def list_challenges(db: Session = Depends(get_db), _: TokenUser = Depends(require_reward_role)):
     now = datetime.utcnow()
     rows = (
         db.query(Challenge)
@@ -186,7 +195,7 @@ def list_challenges(db: Session = Depends(get_db), _: TokenUser = Depends(get_cu
 
 
 @app.get("/store", response_model=list[RewardItemOut])
-def store(db: Session = Depends(get_db), _: TokenUser = Depends(get_current_user)):
+def store(db: Session = Depends(get_db), _: TokenUser = Depends(require_reward_role)):
     items = db.query(RewardItem).filter(RewardItem.active.is_(True)).order_by(RewardItem.cost_points).all()
     return [
         RewardItemOut(
@@ -206,7 +215,7 @@ def store(db: Session = Depends(get_db), _: TokenUser = Depends(get_current_user
 def redeem_item(
     payload: RedeemRequest,
     db: Session = Depends(get_db),
-    user: TokenUser = Depends(get_current_user),
+    user: TokenUser = Depends(require_reward_role),
 ):
     p = ensure_profile(db, user.id, user.full_name, user.role, user.ward)
     try:
@@ -222,7 +231,7 @@ def leaderboard(
     role: str | None = None,
     limit: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
-    user: TokenUser = Depends(get_current_user),
+    user: TokenUser = Depends(require_reward_role),
 ):
     q = db.query(PlayerProfile)
     if scope == "ward":
@@ -250,7 +259,7 @@ def leaderboard(
 @app.get("/leaderboard/wards", response_model=list[WardLeaderboardEntry])
 def ward_leaderboard(
     db: Session = Depends(get_db),
-    _: TokenUser = Depends(get_current_user),
+    _: TokenUser = Depends(require_reward_role),
 ):
     rows = db.query(WardScore).order_by(WardScore.total_xp.desc()).limit(50).all()
     return [
@@ -268,7 +277,7 @@ def ward_leaderboard(
 @app.get("/notifications", response_model=list[NotificationOut])
 def notifications(
     db: Session = Depends(get_db),
-    user: TokenUser = Depends(get_current_user),
+    user: TokenUser = Depends(require_reward_role),
 ):
     return (
         db.query(GameNotification)
@@ -280,7 +289,7 @@ def notifications(
 
 
 @app.post("/notifications/read-all")
-def read_all(db: Session = Depends(get_db), user: TokenUser = Depends(get_current_user)):
+def read_all(db: Session = Depends(get_db), user: TokenUser = Depends(require_reward_role)):
     db.query(GameNotification).filter(
         GameNotification.user_id == user.id, GameNotification.read.is_(False)
     ).update({"read": True})
